@@ -30,7 +30,7 @@ Example:
     s1
     {:service [{:type :service :name "s1"}]}
 
-The result of invoking :run [<wme>...] on an engine is to insert the
+The result of invoking :run [`<wme>`...] on an engine is to insert the
 specified working memory elements, run rules until no more will fire
 and then return a map of wme types to sequences of wmes.
 
@@ -38,44 +38,44 @@ and then return a map of wme types to sequences of wmes.
 
 Currently the commands supported by an engine are:
 
-* (<engine> :run[-map] [<wme>...]) - Run to completion after inserting
+* (`<engine>` :run[-map] [`<wme>`...]) - Run to completion after inserting
   wmes. After running, clear the engine state so that a subsequent
   call will encounter a fresh engine. Returns a map of wme types to
   collections of wme instances.
 
-* (<engine> :run-list [<wme>...]) - Run to completion after inserting
+* (`<engine>` :run-list [`<wme>`...]) - Run to completion after inserting
   wmes. After running, clear the engine state so that a subsequent
   call will encounter a fresh engine. Returns a list of wmes.
 
-* (<engine> :cycle [<wme>...]) - Run to completion after inserting
+* (`<engine>` :cycle [`<wme>`...]) - Run to completion after inserting
   wmes. After running, leave the engine alone so subsequent calls add
   to the state rather than starting fresh.
 
-* (<engine> :configure {<setting> <value>, ...}) - Turn on/off various
+* (`<engine>` :configure {`<setting>` `<value>`, ...}) - Turn on/off various
   settings for the engine:
   * :debug true/false - Whether or not the engine should generate
     debug messages
   * :log-rule-firings true/false - Whether or not to print the names
     of rules as they fire
-  * :trace-set #{<rule name>, ...} - Set of rules whose execution
+  * :trace-set #{`<rule name>`, ...} - Set of rules whose execution
     should be traced
-  * :stop-before #{<rule name>, ...} - Set of rules for which the
+  * :stop-before #{`<rule name>`, ...} - Set of rules for which the
     engine should stop executing when reached (for testing)
-  * :stop-after #{<rule name>, ...} - Set of rules for which the
+  * :stop-after #{`<rule name>`, ...} - Set of rules for which the
     engine should stop executing after firing (for testing)
   * :enable-perf-mon true/false - Whether or not performance
     statistics should be gathered during the run. Requires that the
     code was compiled with the NO_PERF_COMPILE environment variable
     *unset*.
-  * :record <file name> - Record rule firings into a file for
+  * :record `<file name>` - Record rule firings into a file for
     debugging.
 
-* (<engine> :timing) - Display timing gathered by _:enable-perf-mon_.
+* (`<engine>` :timing) - Display timing gathered by _:enable-perf-mon_.
 
-* (<engine> :wmes) - Return a map of the wmes in the engine as
+* (`<engine>` :wmes) - Return a map of the wmes in the engine as
   returned by _run_ and _run-map_.
 
-* (<engine> :wme-list) - Return a list of the wmes in the engine as
+* (`<engine>` :wme-list) - Return a list of the wmes in the engine as
   returned by _run-list_.
 
 There is also a separate "viewer" that can be used to step through a
@@ -84,6 +84,7 @@ recorded rule session for debugging.
 ## Rule Syntax
 Rules are very simple. Here is the complete syntax:
 
+```
 RULE ::= '(' 'defrule' <RULE_NAME> <CONFIG_MAP>? <LHS>? '=>' <RHS> ')'
 
 RULE_NAME ::= *string*
@@ -109,6 +110,8 @@ TEST_EXP ::= *clojure expression referencing OBJ_VAR*
 
 RHS ::= *clojure code*
 
+```
+
 Here is a rule showing the possible syntax:
 
 ``` clojure
@@ -127,10 +130,10 @@ Here is a rule showing the possible syntax:
 There are three engine operations available for use within rule right
 hand sides:
 
-1 (insert! <wme>) - add a wme to the engine
-2 (remove! <wme>) - remove a wme from the engine
-3 (collect! <fun>) | (collect! <wme type> <fun>) - Collect all
-instances for which <fun> returns true, limited to a particular wme
+1 (insert! `<wme>`) - add a wme to the engine
+2 (remove! `<wme>`) - remove a wme from the engine
+3 (collect! `<fun>`) | (collect! <wme type> `<fun>`) - Collect all
+instances for which `<fun>` returns true, limited to a particular wme
 type if the second form is used.
 
 It's sometimes tempting to try to use "collect!" in a rule
@@ -154,14 +157,14 @@ an ":x" and all (or no) instantiations contain a ":y", pick the
 instantiation that was created first. The set of currently available
 checks is:
 
-* :with <wme type> - Prefer instantiations containing wme of type <wme
+* :with `<wme type>` - Prefer instantiations containing wme of type <wme
   type>
-* :without <wme type> - Prefer instantiations not containing wme of
-  type <wme type>
+* :without `<wme type>` - Prefer instantiations not containing wme of
+  type `<wme type>`
 * :newest - Prefer the most recently created instantiation
 * :oldest - Prefer the least recently created instantiation
-* :from-module <module> - Prefer an instantiation from a rule in
-  <module> over any from other modules
+* :from-module `<module>` - Prefer an instantiation from a rule in
+  `<module>` over any from other modules
 
 ## Wme Type Hierarchy
 Sometimes it's useful to write rules that operate on abstract
