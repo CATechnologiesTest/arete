@@ -130,9 +130,9 @@ Here is a rule showing the possible syntax:
 There are three engine operations available for use within rule right
 hand sides:
 
-1 (insert! `<wme>`) - add a wme to the engine
-2 (remove! `<wme>`) - remove a wme from the engine
-3 (collect! `<fun>`) | (collect! <wme type> `<fun>`) - Collect all
+1. (insert! `<wme>`) - add a wme to the engine
+2. (remove! `<wme>`) - remove a wme from the engine
+3. (collect! `<fun>`) | (collect! <wme type> `<fun>`) - Collect all
 instances for which `<fun>` returns true, limited to a particular wme
 type if the second form is used.
 
