@@ -739,11 +739,11 @@ bottom. When execution reaches the nand node (in "pass" mode) it
 passes execution up the left side and does the following for any
 successful upstream matches:
 
-1) Bind *outer-vars* to all the object match variables in any outer
+1. Bind *outer-vars* to all the object match variables in any outer
 network. In this case, that's just one variable: ?mortgage.
-2) Run the entire inner nand subnetwork and collect any resulting
+2. Run the entire inner nand subnetwork and collect any resulting
 negative instantiations.
-3) If there are any resulting instantiations, store them in a new nand
+3. If there are any resulting instantiations, store them in a new nand
 record for the nand node keyed by the wmes; otherwise, call the
 downward function with the wmes.
 
@@ -755,10 +755,11 @@ If a wme is added to the inner network, we have to look for matches
 with each wme combination that made it to the nand node. So, we
 iterate through the nand records and, for each one:
 
-1) Set the nand node to "sub" mode
-2) Bind *outer-vars* to the wmes.
-3) Run the inner network and if there are any resulting instantiations:
-3.1) if there is already a nand record for the wmes, add the
+1. Set the nand node to "sub" mode
+2. Bind *outer-vars* to the wmes.
+3. Run the inner network and if there are any resulting instantiations:
+
+If there is already a nand record for the wmes, add the
 instantiation to its instantiation list and stop; otherwise, create a
 new nand-record, add the instantiation, and remove all positive
 instantiations downstream whose wmes include the wmes present at the
