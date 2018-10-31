@@ -1,5 +1,4 @@
 # Arete rule engine (version: 0.6.0)
-
 A Clojure implementation of a simple forward chaining rule engine. An
 engine is created by defining rules in one or more modules and
 invoking engine.core/engine on keywords defining the modules. Each
@@ -34,8 +33,13 @@ The result of invoking :run [`<wme>`...] on an engine is to insert the
 specified working memory elements, run rules until no more will fire
 and then return a map of wme types to sequences of wmes.
 
-## Usage
+## Install
+The Arete engine is available from clojars as `[arete "0.6.0"]` or simply
+download the repo, install leiningen if necessary, and run `lein
+uberjar`. The main class in the uberjar is the rule viewer for
+debugging. The engine itself has no command line.
 
+## Usage
 Currently the commands supported by an engine are:
 
 * (`<engine>` :run[-map] [`<wme>`...]) - Run to completion after inserting
@@ -181,6 +185,197 @@ says that any rule that matches a ":controller" should also match a
 ":deployment", ":daemonset", ":statefulset", or ":cronjob". The
 ancestor relationship is transitive so any ancestor of ":controller"
 would also be an ancestor of its descendents.
+
+## Rule Viewer
+The rule viewer allows post-mortem debugging via a recorded
+session. If you configure the engine to record:
+
+``` clojure
+(eng :configure {:record "/tmp/out"})
+```
+
+you can run the viewer against the file after the fact. Here is a
+simple set of rules implementing "factorial" that we can use to
+demonstrate:
+
+``` clojure
+(ns engine.factorial
+  (:require [engine.core :refer :all]))
+
+(defrule fact-base
+  [?arg :factarg (<= (:value ?arg) 0)]
+  =>
+  (remove! ?arg)
+  (insert! {:type :factor :value 1}))
+
+(defrule fact
+  [?arg :factarg (> (:value ?arg) 0)]
+  =>
+  (remove! ?arg)
+  (insert! (update ?arg :value dec))
+  (insert! {:type :factor :value (:value ?arg)}))
+
+(defrule combine
+  [?factor1 :factor]
+  [?factor2 :factor (not= ?factor1 ?factor2)]
+  =>
+  (remove! ?factor1)
+  (remove! ?factor2)
+  (insert! {:type :factor :value (* (:value ?factor1) (:value ?factor2))}))
+
+(defrule result
+  [?factor :factor]
+  [:not [?factor2 :factor (not= ?factor ?factor2)]]
+  [:not [? :factarg]]
+  =>
+  (remove! ?factor)
+  (insert! {:type :fact-result :value (:value ?factor)}))
+```
+
+We'll run them by hand in the repl:
+
+    lein repl
+
+    engine.viewer=> (require '[engine.core :as e])
+    nil
+    engine.viewer=> (require '[engine.factorial])
+    Compiling engine.factorial/fact-base
+    Compiling engine.factorial/fact
+    Compiling engine.factorial/combine
+    Compiling engine.factorial/result
+    nil
+    engine.viewer=> (def eng (e/engine :engine.factorial))
+    #'engine.viewer/eng
+    engine.viewer=> (eng :configure {:record "/tmp/out"})
+    #object[engine.core$engine$fn__1979 0x3400db7b "engine.core$engine$fn__1979@3400db7b"]
+    engine.viewer=> (eng :run [{:type :factarg :value 6}])
+    {:fact-result [{:type :fact-result, :value 720}]}
+    ^D
+
+Now let's run the viewer:
+
+    java -jar target/arete-0.6.0-standalone.jar /tmp/out
+
+    Instantiations:
+     :engine.factorial/fact (3*)
+
+    Wmes:
+     :_start (1*)
+     :factarg (2*)
+
+    (0)==>
+
+This shows us at step 0 with one rule instantiation and two wmes (the
+_start wme used to trigger rules without left hand sides and our
+factorial argument). The "*" after each number indicates that the wme
+or instantiation was newly created. Let's type in the number of the
+argument to get a better look:
+
+    (0)==> 2
+
+    WME - (2):factarg
+
+    value: 6
+
+    (0)==>
+
+Not _too_ much to see here since it's a very simple wme. A '?' will tell us
+all our options:
+
+    (0)==> ?
+    Usage:
+      '<':
+          go to beginning
+      '>':
+          go to end
+      '?':
+          display this help
+      '.':
+          exit the viewer
+      '<cr>':
+      if at top level, move forward one firing; otherwise return to top level
+      '<number>[,<number>]*':
+      display insts or wmes with <number>s as ids
+      'ar':
+          display all rule firings for the run
+      'b':
+          back up one firing
+      'e <exp>':
+          evaluate expression referencing an individual wme as: :<id> and all wmes
+          as :0
+      'g <step id>':
+          go to step number: <step id>
+      'h':
+          display command history
+      'pi <str>':
+          display partial rule instantiations for rules with name containing <str>
+      'r':
+          display rule firings leading to this point
+      'ref <wme id>':
+          display any wmes that reference the specified wme via a UUID link
+      'rs <str>':
+          display rule with name containing <str>
+      'sc <wme id>':
+          find the firing that created the specified wme
+      'sd <wme id>':
+          find the firing that deleted the specified wme
+      'ss <str>':
+          find the next firing containing a wme whose string representation includes
+          <str>
+      'st <type fragment>':
+          find the next firing containing a wme whose type name includes the <type
+          fragment>
+      'sr <rule fragment>':
+          find the next firing for a rule whose name includes the <rule fragment>
+      'si <type fragment>':
+          find the next firing whose instantiation references a wme with type
+          containing the <type fragment>
+      'save <filename>':
+          save the history to a file (when running as ":record true")
+      'w':
+          display all wmes for current firing
+      'w <type fragment>':
+          display all wmes for current firing with types containing <type fragment>
+      'ws <str>':
+          display all wmes for current firing whose string representations contain
+          <str>
+
+    (0)==>
+
+Let's see all the rules that fired:
+
+    (0)==> ar
+    0) :engine.factorial/fact
+    1) :engine.factorial/fact
+    2) :engine.factorial/combine
+    3) :engine.factorial/fact
+    4) :engine.factorial/combine
+    5) :engine.factorial/fact
+    6) :engine.factorial/combine
+    7) :engine.factorial/fact
+    8) :engine.factorial/combine
+    9) :engine.factorial/fact
+    10) :engine.factorial/combine
+    11) :engine.factorial/fact-base
+    12) :engine.factorial/combine
+    13) :engine.factorial/result
+    (0)==>
+
+Now let's go to the end:
+
+    (0)==> >
+
+    Last Rule: :engine.factorial/result
+
+    Wmes:
+     :_start (1)
+     :fact-result (66*)
+
+    (14)==>
+
+Notice that once you're past the initial step, the previously fired
+rule is also displayed. The rest of the viewer functionality will be
+clear with a bit of experimentation.
 
 ## Implementation
 The engine is loosely based on the TREAT algorithm, though the
