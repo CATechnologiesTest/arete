@@ -43,7 +43,7 @@ code. Though there are multiple Java-based rule engines, they are
 quite heavyweight, and are mostly oriented more toward expressing
 business rules than just providing an additional programming
 paradigm. The only Clojure engine we found
-[Clara Rules](http://www.clara-rules.org/) is a great tool but is aimed at
+([Clara Rules](http://www.clara-rules.org/)) is a great tool but is aimed at
 different use cases. It shares with this engine, however, the
 advantage that rules can be expressed directly in a Clojure program
 without any new, separate language that needs to be parsed.
