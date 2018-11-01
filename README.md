@@ -33,6 +33,27 @@ The result of invoking :run [`<wme>`...] on an engine is to insert the
 specified working memory elements, run rules until no more will fire
 and then return a map of wme types to sequences of wmes.
 
+## Background
+This engine was originally created to help with translating between
+different container orchestration formats (Kubernetes and Docker
+Compose). Both formats were changing rapidly and they don't have
+particularly similar structures. Rules made it easy to express global
+constraints and to avoid a lot of complicated and fragile navigation
+code. Though there are multiple Java-based rule engines, they are
+quite heavyweight, and are mostly oriented more toward expressing
+business rules than just providing an additional programming
+paradigm. The only Clojure engine we found
+[Clara Rules](http://www.clara-rules.org/) is a great tool but is aimed at
+different use cases. It shares with this engine, however, the
+advantage that rules can be expressed directly in a Clojure program
+without any new, separate language that needs to be parsed.
+
+Since this engine was used for translation (and not, say, cluster
+management) there is not much support built in for having an engine
+instance run forever while taking new inputs and processing them. It
+would actually be relatively easy to do and will probably happen at
+some point if there's interest.
+
 ## Install
 The Arete engine is available from clojars as `[arete "0.6.0"]` or simply
 download the repo, install leiningen if necessary, and run `lein
