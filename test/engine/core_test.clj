@@ -92,27 +92,23 @@
              2))))
   (testing "not not"
     (let [eng (engine :engine.negated-conjunction-test)]
-      (eng :configure {:debug true})
       (is (= (count (:gonzo
                      (eng :run [{:type :smorg :value 6}
                                 {:type :skoolj :value 6}])))
              0))))
   (testing "not not2"
     (let [eng (engine :engine.negated-conjunction-test)]
-      (eng :configure {:debug true})
       (is (= (count (:gonzo2
                      (eng :run [{:type :smorg2 :value 6}])))
              1))))
   (testing "not not again"
     (let [eng (engine :engine.negated-conjunction-test)]
-      (eng :configure {:debug true})
       (is (= (count (:gonzo-again
                      (eng :run [{:type :smorg-again :value 6}
                                 {:type :skoolj-again :value 6}])))
              1))))
   (testing "nested not not"
     (let [eng (engine :engine.negated-conjunction-test)]
-      (eng :configure {:debug true})
       (is (= (count (:ngonzo
                      (eng :run [{:type :nsmorg :value 6}
                                 {:type :nfoo}
@@ -120,7 +116,6 @@
              1))))
   (testing "nested not not not"
     (let [eng (engine :engine.negated-conjunction-test)]
-      (eng :configure {:debug true})
       (is (= (count (:ngonzo3
                      (eng :run [{:type :nsmorg3 :value 6}
                                 {:type :nfoo3}

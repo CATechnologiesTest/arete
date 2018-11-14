@@ -78,8 +78,6 @@ Currently the commands supported by an engine are:
 
 * (`<engine>` :configure {`<setting>` `<value>`, ...}) - Turn on/off various
   settings for the engine:
-  * :debug true/false - Whether or not the engine should generate
-    debug messages
   * :log-rule-firings true/false - Whether or not to print the names
     of rules as they fire
   * :trace-set #{`<rule name>`, ...} - Set of rules whose execution
@@ -397,6 +395,48 @@ Now let's go to the end:
 Notice that once you're past the initial step, the previously fired
 rule is also displayed. The rest of the viewer functionality will be
 clear with a bit of experimentation.
+
+## Performance monitoring
+Timing of individual rules and more global properties of the engine
+can be obtained by setting the environment variable "DEBUG_COMPILE" to
+true and configuring the :enable-perf-mon flag to true. This
+will cause performance stats to be collected which can be viewed by
+invoking :timing on the engine after a run. With no argument or an
+argument of false, the timing data will get cleared after being
+requested. An argument of true will leave the data intact so it can be
+combined with data from other runs. The result of calling :timing is a
+CSV file written to stdout that can be imported into a
+spreadsheet. Something like:
+
+    finish-beta,29133401,100001,278837,209,291.33109668903313
+    create-instantiation,234105613,100002,127878,1705,2341.0093098138036
+    remove-pos-instantiation,280358199,100002,2561909,2142,2803.5259194816103
+    increment,434698310,200002,600855,297,2173.469815301847
+    rules,1018306095,400006,3263097,688,2545.727051594226
+    increment-body,216165513,100000,1865289,1609,2161.65513
+    body,250362454,100001,1866451,1882,2503.5995040049597
+    finish-body,53312,1,53312,53312,53312.0
+    remove-instantiation-inst-remove,60288971,100002,50316,443,602.8776524469511
+    alpha,179129354,400006,122936,323,447.81666774998376
+    instantiation-ordering,41489399,200004,42648,127,207.44284614307713
+    finish,391241373,200004,3196323,300,1956.167741645167
+    remove-instantiation-wme-loop,76970146,100002,2554643,522,769.6860662786744
+    beta,63759857,100001,2040271,470,637.5921940780593
+
+The columns are:
+
+`Name, Total Time, Number of Invocations, Max Time, Min Time, Mean Time`
+
+Currently, the engine internal data is mixed in with the data for user
+rules. At some point, the perf interface will be made more
+user-friendly; however it is already quite useful in its current
+state.
+
+The performance monitoring has very little overhead, particularly if
+the engine does not have it enabled and DEBUG_COMPILE was not
+set. However, if you want the absolute maximum speed for a deployed
+system, set the environment variable NO_PERF_COMPILE to true before
+building your application.
 
 ## Implementation
 The engine is loosely based on the TREAT algorithm, though the

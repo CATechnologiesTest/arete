@@ -223,11 +223,10 @@
           (fn ~upstream-name [~@outer-var-sublist ~@vars]
             (~op-name
              ~@(when uhash-exp
-                 ;; (if outer-vars
-                 ;;   [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
-                 ;;       ~uhash-exp)]
-                 [uhash-exp])
-             ;)
+                 (if outer-vars
+                   [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
+                       ~uhash-exp)]
+                 [uhash-exp]))
              ;; beta tests
              ~(if @compile-with-debug
                 `(fn ~sub-fun [~@outer-var-sublist ~wme-var]
