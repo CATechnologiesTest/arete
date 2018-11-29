@@ -5,18 +5,37 @@
             [engine.core :refer :all]
             [engine.context-test :as ctxt]))
 
-(deftest simple-rule
-  (testing "Simple rule, no deletion"
-    (let [result
-          ((engine :engine.simple-rule-test)
-           :run
-           [{:type :ball :pattern :solid :color :blue :value 28}
-            {:type :ball :pattern :stripe :color :blue :value 6}])
-          pairs (:pair result)
-          balls (:ball result)]
-      (is (= (count result) 2))
-      (is (= pairs [{:type :pair :ball1 6 :ball2 28}]))
-      (is (= (count balls) 2)))))
+;; (deftest simple-rule
+;;   (testing "Simple rule, no deletion"
+;;     (let [result
+;;           ((engine :engine.simple-rule-test)
+;;            :run
+;;            [{:type :ball :pattern :solid :color :blue :value 28}
+;;             {:type :ball :pattern :stripe :color :blue :value 6}])
+;;           pairs (:pair result)
+;;           balls (:ball result)]
+;;       (is (= (count result) 2))
+;;       (is (= pairs [{:type :pair :ball1 6 :ball2 28}]))
+;;       (is (= (count balls) 2)))))
+
+(deftest big-cross
+  (testing "inequality performance"
+    (let [data (atom [])
+          eng (engine :engine.simple-rule-test)
+          _ (eng :configure {:max-repeated-firings 2000000})
+          _ (loop [i 0 j -9998]
+              (when (< i 10001)
+                (swap! data conj {:type :ball :pattern :stripe :color :red
+                                  :value i})
+                (swap! data conj {:type :ball :pattern :solid :color :red
+                                  :value j})
+                (recur (inc i) (inc j))))
+          _ (loop [g 0]
+              (when (< g 5)
+                (swap! data conj {:type :gurk :value g})))
+          _ (println (count @data))
+          result (time (eng :run-list @data))]
+      (println (count result)))))
 
 (deftest simple-priority
   (testing "Simple rule, two priorities w/ deletion"

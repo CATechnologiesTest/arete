@@ -7,8 +7,10 @@
   [?ball2 :ball
    (= (:pattern ?ball2) :solid)
    (= (:color ?ball2) (:color ?ball1))
-   (> (:value ?ball2) (:value ?ball1))]
+   (>> (:value ?ball2) (:value ?ball1))]
+  [?gurk :gurk (= (:value ?gurk) (:value ?ball2))]
   =>
-  (insert! {:type :pair :ball1 (:value ?ball1) :ball2 (:value ?ball2)}))
+  (insert! {:type :triple :ball1 (:value ?ball1) :ball2 (:value ?ball2)
+            :gurk (:value ?gurk)}))
 
 

@@ -5,7 +5,7 @@
 (defrule finish
   {:priority 10}
   [?limit :limit]
-  [?counter :counter (>= ^long (:value ?counter) ^long (:value ?limit))]
+  [?counter :counter (>>= ^long (:value ?counter) ^long (:value ?limit))]
   =>
   (remove! ?limit)
   (remove! ?counter)
