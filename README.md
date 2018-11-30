@@ -441,7 +441,7 @@ system, set the environment variable NO_PERF_COMPILE to true before
 building your application.
 
 ## Inequality Optimization
-As in any even non-toy rule engine, equal joins between LHS objects
+As in any non-toy rule engine, equal joins between LHS objects
 are turned into hash lookups. This means that the execution of a rule
 like:
 
@@ -505,7 +505,7 @@ two ball matches. This is something of a worst case scenario for arete
 since it does not save intermediate join results between
 executions (A RETE-based engine would have a similar problem if a
 new wme was added in a match higher in the LHS and would do much more
-work if balls rather than gurks were being added and removed). If we
+work if "balls" rather than "gurks" were being added and removed). If we
 make one minor change, however:
 
     (defrule foo
