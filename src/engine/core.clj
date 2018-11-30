@@ -314,7 +314,7 @@
                 (when (and ~@(map #(translate-obj-test % wme-var) beta-tests))
                   (~down ~@outer-var-sublist ~@(conj vars wme-var))))))))))
 
-(defn unpack [x]
+(defn- unpack [x]
   (let [comparison (first x)]
     (if (> (count x) 3)
       (cons (list comparison (second x) (third x))

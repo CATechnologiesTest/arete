@@ -1,4 +1,4 @@
-(ns engine.simple-rule-test
+(ns engine.big-cross-test
   (:require [engine.core :refer :all]))
 
 (defrule foo
