@@ -8,7 +8,7 @@
             [flatland.ordered.set :as ordered]
             [clojure.java.io :as io])
   (:import [org.javasimon SimonManager Stopwatch]
-           [java.util HashMap TreeSet TreeMap TreeMap$Entry
+           [java.util Map HashMap TreeSet TreeMap TreeMap$Entry
             TreeMap$DescendingSubMap Comparator ArrayDeque]
            clojure.lang.PersistentVector))
 
@@ -409,22 +409,103 @@
                  w)
          :rule (:rule inst)})))
 
-(defn alpha-hash-fun-no-tests [hash-fun ^HashMap main-hmap
+;; Special versions of inequality operators for inequalities across
+;; large numbers of wmes
+(def >> >)
+(def >>= >=)
+(def << <)
+(def <<= <=)
+
+(defn tcomp-for [comp]
+  (condp = comp
+    >> >
+    >>= >
+    << <
+    <<= <
+    comp))
+
+(defn is-inclusive? [comp]
+  (or (= comp >>=) (= comp <<=)))
+
+(defn tree-map-apply [tmap comps keys op]
+  (when tmap
+    (let [[key & rest-keys] keys
+          [comp & rest-comps] comps
+          it (.iterator
+              (.values
+               (.headMap ^TreeMap tmap key (is-inclusive? comp))))]
+      (if rest-keys
+        (loop []
+          (when (.hasNext it)
+            (tree-map-apply (.next it) rest-comps rest-keys op)
+            (recur)))
+        (loop []
+          (when (.hasNext it)
+            (doseq [[_ val] (.next it)] (op val))
+            (recur)))))))
+
+(defn tree-map-get [tmap comps keys]
+  (let [results (atom [])]
+    (tree-map-apply tmap comps keys #(swap! results conj %))
+    @results))
+
+(defn tree-map-insert [^TreeMap tmap comps keys val]
+  (let [[key & rest-keys] keys]
+    (if tmap
+      (let [existing (.get tmap key)]
+        (if existing
+          (if (seq rest-keys)
+            (tree-map-insert existing (rest comps) rest-keys val)
+            (.put ^HashMap existing (:__id val) val))
+          (if (seq rest-keys)
+            (.put tmap key (tree-map-insert nil (rest comps) rest-keys val))
+            (let [new-map (make-map)]
+              (.put tmap key new-map)
+              (.put new-map (:__id val) val))))
+        tmap)
+      (let [newmap (TreeMap. ^Comparator (tcomp-for (first comps)))]
+        (if (seq rest-keys)
+          (.put newmap key (tree-map-insert nil (rest comps) rest-keys val))
+          (let [sub-map (make-map)]
+              (.put newmap key sub-map)
+              (.put sub-map (:__id val) val)))
+        newmap))))
+
+(defn tree-map-remove [^TreeMap tmap keys id]
+  (let [[key & rest-keys] keys]
+    (when tmap
+      (let [existing (.get tmap key)]
+        (when existing
+          (if (seq rest-keys)
+            (tree-map-remove existing rest-keys id)
+            (.remove ^HashMap existing id))
+          (when (.isEmpty ^Map existing)
+            (.remove tmap key)))))))
+
+(defn alpha-hash-fun-no-tests [hash-fun ie-fun comps ^HashMap main-hmap
                                current-hmap empty-count net-fun]
   (fn [^Wme wme-var]
     (let [hash-val (hash-fun wme-var)]
       (when (.isEmpty main-hmap)
         (reset! empty-count (dec @empty-count)))
-      (let [existing (or (.get main-hmap hash-val)
-                         (let [m (make-map)]
-                           (.put main-hmap hash-val m)
-                           m))]
-        (.put ^HashMap existing (:__id wme-var) wme-var))
-      (reset! current-hmap {hash-val {(:__id wme-var) wme-var}})
-      (@net-fun)
-      (reset! current-hmap main-hmap))))
+      (let [ie-val (and ie-fun (ie-fun wme-var))]
+        (let [existing (or (.get main-hmap hash-val)
+                           (and (not ie-fun)
+                                (let [m (make-map)]
+                                  (.put main-hmap hash-val m)
+                                  m)))]
+          (if ie-fun
+            (.put main-hmap hash-val
+                  (tree-map-insert existing comps ie-val wme-var))
+            (.put ^HashMap existing (:__id wme-var) wme-var)))
+        (if ie-fun
+          (reset! current-hmap
+                  {hash-val (tree-map-insert nil comps ie-val wme-var)})
+          (reset! current-hmap {hash-val {(:__id wme-var) wme-var}}))
+        (@net-fun)
+        (reset! current-hmap main-hmap)))))
 
-(defn debug-alpha-hash-fun-no-tests [rname-string alpha-name hash-fun
+(defn debug-alpha-hash-fun-no-tests [rname-string alpha-name hash-fun ie-fun comps
                                      ^HashMap main-hmap current-hmap
                                      empty-count net-name net-fun]
   (fn [^Wme wme-var]
@@ -432,115 +513,160 @@
           asplit (simon-start "alpha")
           rulesplit (simon-start rname-string)
           hash-val (hash-fun wme-var)]
-      (do (when (.isEmpty main-hmap)
-            (reset! empty-count (dec @empty-count)))
-          (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
-                  (with-out-str
-                    (pprint/pprint wme-var))
-                  (name alpha-name))
+      (when (.isEmpty main-hmap)
+        (reset! empty-count (dec @empty-count)))
+      (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
+              (with-out-str
+                (pprint/pprint wme-var))
+              (name alpha-name))
+        (let [ie-val (and ie-fun (ie-fun wme-var))]
           (let [existing (or (.get main-hmap hash-val)
-                           (let [m (make-map)]
-                             (.put main-hmap hash-val m)
-                             m))]
-            (.put ^HashMap existing (:__id wme-var) wme-var))
+                             (and (not ie-fun)
+                                  (let [m (make-map)]
+                                    (.put main-hmap hash-val m)
+                                    m)))]
+            (if ie-fun
+              (.put main-hmap hash-val
+                    (tree-map-insert existing comps ie-val wme-var))
+              (.put ^HashMap existing (:__id wme-var) wme-var)))
           (debugf "Empty count: %s" @empty-count)
-          (reset! current-hmap {hash-val {(:__id wme-var) wme-var}})
+          (if ie-fun
+            (reset! current-hmap
+                    {hash-val (tree-map-insert nil comps ie-val wme-var)})
+            (reset! current-hmap {hash-val {(:__id wme-var) wme-var}}))
           (debugf "About to invoke main fun: %s" net-name)
           (simon-stop asplit)
           (@net-fun)
           (debugf "Finished invoking main fun %s" net-name)
-          (reset! current-hmap main-hmap))
-      (simon-stop rulesplit)
-      (simon-stop split))))
+          (reset! current-hmap main-hmap)
+          (simon-stop rulesplit)
+          (simon-stop split)))))
 
-(defn alpha-fun-no-tests [^HashMap main-hmap current-map empty-count net-fun]
+(defn alpha-fun-no-tests [ie-fun comps ^HashMap main-hmap current-map empty-count
+                          net-fun]
   (fn [^Wme wme-var]
     (when (.isEmpty main-hmap) (reset! empty-count (dec @empty-count)))
-    (.put main-hmap (:__id wme-var) wme-var)
-    (reset! current-map {(:__id wme-var) wme-var})
+    (if ie-fun
+      (let [ie-val (ie-fun wme-var)]
+        (.put main-hmap
+              :ie
+              (tree-map-insert (.get main-hmap :ie) comps ie-val wme-var))
+        (reset! current-map {:ie (tree-map-insert nil comps ie-val wme-var)}))
+      (do (.put main-hmap (:__id wme-var) wme-var)
+          (reset! current-map {(:__id wme-var) wme-var})))
     (@net-fun)
     (reset! current-map main-hmap)))
 
-(defn debug-alpha-fun-no-tests [rname-string alpha-name ^HashMap main-hmap
+(defn debug-alpha-fun-no-tests [rname-string alpha-name ie-fun comps
+                                ^HashMap main-hmap
                                 current-map empty-count net-name net-fun]
   (fn [^Wme wme-var]
     (let [split (simon-start "rules")
           asplit (simon-start "alpha")
           rulesplit (simon-start rname-string)]
-      (do (when (.isEmpty main-hmap)
-            (reset! empty-count (dec @empty-count)))
-          (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
-                  (with-out-str
-                    (pprint/pprint wme-var))
-                  (name alpha-name))
-          (.put main-hmap (:__id wme-var) wme-var)
-          (debugf "Empty count: %s" @empty-count)
-          (reset! current-map {(:__id wme-var) wme-var})
-          (debugf "About to invoke main fun: %s" net-name)
-          (simon-stop asplit)
-          (@net-fun)
-          (debugf "Finished invoking main fun %s" net-name)
-          (reset! current-map main-hmap))
+      (when (.isEmpty main-hmap)
+        (reset! empty-count (dec @empty-count)))
+      (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
+              (with-out-str
+                (pprint/pprint wme-var))
+              (name alpha-name))
+      (if ie-fun
+        (let [ie-val (ie-fun wme-var)]
+          (.put main-hmap
+                :ie
+                (tree-map-insert (.get main-hmap :ie) comps ie-val wme-var))
+          (reset! current-map {:ie (tree-map-insert nil comps ie-val wme-var)}))
+        (do (.put main-hmap (:__id wme-var) wme-var)
+            (reset! current-map {(:__id wme-var) wme-var})))
+      (debugf "Empty count: %s" @empty-count)
+      (debugf "About to invoke main fun: %s" net-name)
+      (simon-stop asplit)
+      (@net-fun)
+      (debugf "Finished invoking main fun %s" net-name)
+      (reset! current-map main-hmap)
       (simon-stop rulesplit)
       (simon-stop split))))
 
-(defn alpha-hash-fun [test-fun hash-fun ^HashMap main-hmap current-hmap
-                      empty-count net-fun]
+(defn alpha-hash-fun [test-fun hash-fun ie-fun comps ^HashMap main-hmap
+                      current-hmap empty-count net-fun]
   (fn [^Wme wme-var]
     (let [hash-val (hash-fun wme-var)]
       (when (test-fun wme-var)
         (when (.isEmpty main-hmap)
           (reset! empty-count (dec @empty-count)))
-        (let [existing (or (.get main-hmap hash-val)
-                           (let [m (make-map)]
-                             (.put main-hmap hash-val m)
-                             m))]
-          (.put ^HashMap existing (:__id wme-var) wme-var))
-        (reset! current-hmap {hash-val {(:__id wme-var) wme-var}})
-        (@net-fun)
-        (reset! current-hmap main-hmap)))))
+        (let [ie-val (and ie-fun (ie-fun wme-var))]
+          (let [existing (or (.get main-hmap hash-val)
+                             (and (not ie-fun)
+                                  (let [m (make-map)]
+                                    (.put main-hmap hash-val m)
+                                    m)))]
+            (if ie-fun
+              (.put main-hmap hash-val
+                    (tree-map-insert existing comps ie-val wme-var))
+              (.put ^HashMap existing (:__id wme-var) wme-var)))
+          (if ie-fun
+            (reset! current-hmap
+                    {hash-val (tree-map-insert nil comps ie-val wme-var)})
+            (reset! current-hmap {hash-val {(:__id wme-var) wme-var}}))
+          (@net-fun)
+          (reset! current-hmap main-hmap))))))
 
-(defn debug-alpha-hash-fun [rname-string alpha-name test-fun hash-fun
-                      ^HashMap main-hmap current-hmap empty-count net-name
-                      net-fun]
-  (fn [^Wme wme-var]
-    (let [split (simon-start "rules")
-          asplit (simon-start "alpha")
-          rulesplit (simon-start rname-string)
-          hash-val (hash-fun wme-var)]
-      (when (test-fun wme-var)
-        (when (.isEmpty main-hmap)
-          (reset! empty-count (dec @empty-count)))
-        (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
-                (with-out-str
-                  (pprint/pprint wme-var))
-                (name alpha-name))
-        (let [existing (or (.get main-hmap hash-val)
-                           (let [m (make-map)]
-                             (.put main-hmap hash-val m)
-                             m))]
-          (.put ^HashMap existing (:__id wme-var) wme-var))
-        (debugf "Empty count: %s" @empty-count)
-        (reset! current-hmap {hash-val {(:__id wme-var) wme-var}})
-        (debugf "About to invoke main fun: %s" net-name)
-        (simon-stop asplit)
-        (@net-fun)
-        (debugf "Finished invoking main fun %s" net-name)
-        (reset! current-hmap main-hmap))
-      (simon-stop rulesplit)
-      (simon-stop split))))
+  (defn debug-alpha-hash-fun [rname-string alpha-name test-fun hash-fun ie-fun comps
+                              ^HashMap main-hmap current-hmap empty-count net-name
+                              net-fun]
+    (fn [^Wme wme-var]
+      (let [split (simon-start "rules")
+            asplit (simon-start "alpha")
+            rulesplit (simon-start rname-string)
+            hash-val (hash-fun wme-var)]
+        (when (test-fun wme-var)
+          (when (.isEmpty main-hmap)
+            (reset! empty-count (dec @empty-count)))
+          (debugf "Adding:\n------\n%s------\n\nto:\n------\n%s\n------\n"
+                  (with-out-str
+                    (pprint/pprint wme-var))
+                  (name alpha-name))
+          (let [ie-val (and ie-fun (ie-fun wme-var))]
+            (let [existing (or (.get main-hmap hash-val)
+                               (and (not ie-fun)
+                                    (let [m (make-map)]
+                                      (.put main-hmap hash-val m)
+                                      m)))]
+              (if ie-fun
+                (.put main-hmap hash-val
+                      (tree-map-insert existing comps ie-val wme-var))
+                (.put ^HashMap existing (:__id wme-var) wme-var)))
+            (debugf "Empty count: %s" @empty-count)
+            (if ie-fun
+              (reset! current-hmap
+                      {hash-val (tree-map-insert nil comps ie-val wme-var)})
+              (reset! current-hmap {hash-val {(:__id wme-var) wme-var}}))
+            (debugf "About to invoke main fun: %s" net-name)
+            (simon-stop asplit)
+            (@net-fun)
+            (debugf "Finished invoking main fun %s" net-name)
+            (reset! current-hmap main-hmap))
+          (simon-stop rulesplit)
+          (simon-stop split)))))
 
-(defn alpha-fun [test-fun ^HashMap main-hmap current-map empty-count net-fun]
+(defn alpha-fun [test-fun ie-fun comps ^HashMap main-hmap current-map empty-count
+                 net-fun]
   (fn [^Wme wme-var]
       (when (test-fun wme-var)
-        (when (.isEmpty main-hmap)
-          (reset! empty-count (dec @empty-count)))
-        (.put main-hmap (:__id wme-var) wme-var)
-        (reset! current-map {(:__id wme-var) wme-var})
+        (when (.isEmpty main-hmap) (reset! empty-count (dec @empty-count)))
+        (if ie-fun
+          (let [ie-val (ie-fun wme-var)]
+            (.put main-hmap
+                  :ie
+                  (tree-map-insert (.get main-hmap :ie) comps ie-val wme-var))
+            (reset! current-map {:ie (tree-map-insert nil comps ie-val wme-var)}))
+          (do (.put main-hmap (:__id wme-var) wme-var)
+              (reset! current-map {(:__id wme-var) wme-var})))
         (@net-fun)
         (reset! current-map main-hmap))))
 
-(defn debug-alpha-fun [rname-string alpha-name test-fun ^HashMap main-hmap
+(defn debug-alpha-fun [rname-string alpha-name test-fun ie-fun comps
+                       ^HashMap main-hmap
                        current-map empty-count net-name net-fun]
   (fn [^Wme wme-var]
     (let [split (simon-start "rules")
@@ -553,9 +679,15 @@
                 (with-out-str
                   (pprint/pprint wme-var))
                 (name alpha-name))
-        (.put main-hmap (:__id wme-var) wme-var)
+        (if ie-fun
+          (let [ie-val (ie-fun wme-var)]
+            (.put main-hmap
+                  :ie
+                  (tree-map-insert (.get main-hmap :ie) comps ie-val wme-var))
+            (reset! current-map {:ie (tree-map-insert nil comps ie-val wme-var)}))
+          (do (.put main-hmap (:__id wme-var) wme-var)
+              (reset! current-map {(:__id wme-var) wme-var})))
         (debugf "Empty count: %s" @empty-count)
-        (reset! current-map {(:__id wme-var) wme-var})
         (debugf "About to invoke main fun: %s" net-name)
         (simon-stop asplit)
         (@net-fun)
@@ -564,18 +696,22 @@
       (simon-stop rulesplit)
       (simon-stop split))))
 
-(defn alpha-hash-rem-fun [^HashMap main-hmap hash-fun empty-count]
+(defn alpha-hash-rem-fun [^HashMap main-hmap hash-fun ie-fun empty-count]
   (fn [^Wme wme-var]
     (let [hash-val (hash-fun wme-var)
           existing (.get main-hmap hash-val)
-          removed (and existing (.remove ^HashMap existing (:__id wme-var)))]
+          removed (and existing
+                       (if ie-fun
+                         (tree-map-remove existing (ie-fun wme-var)
+                                          (:__id wme-var))
+                         (.remove ^HashMap existing (:__id wme-var))))]
       (when (empty? existing)
         (.remove main-hmap hash-val))
       (when (and removed (.isEmpty main-hmap))
         (reset! empty-count (inc @empty-count))))))
 
 (defn debug-alpha-hash-rem-fun [rname-string alpha-name ^HashMap main-hmap
-                                hash-fun empty-count]
+                                hash-fun ie-fun empty-count]
   (fn [^Wme wme-var]
     (let [split (simon-start "rules")
           asplit (simon-start "alpha")
@@ -587,7 +723,10 @@
       (let [hash-val (hash-fun wme-var)
             existing (.get main-hmap hash-val)
             removed (and existing
-                         (.remove ^HashMap existing (:__id wme-var)))]
+                         (if ie-fun
+                           (tree-map-remove existing (ie-fun wme-var)
+                                          (:__id wme-var))
+                         (.remove ^HashMap existing (:__id wme-var))))]
         (when (empty? existing)
           (.remove main-hmap hash-val))
         (when (and removed
@@ -598,12 +737,21 @@
       (simon-stop rulesplit)
       (simon-stop split))))
 
-(defn alpha-rem-fun [^HashMap main-hmap empty-count]
+(defn alpha-rem-fun [^HashMap main-hmap ie-fun empty-count]
   (fn [^Wme wme-var]
-    (when (and (.remove main-hmap (:__id wme-var)) (.isEmpty main-hmap))
+    (when (and (if ie-fun
+                 (let [submap (.get main-hmap :ie)
+                       removed (tree-map-remove submap (ie-fun wme-var)
+                                                (:__id wme-var))]
+                   (when (and submap (.isEmpty ^TreeMap submap))
+                     (.remove main-hmap :ie))
+                   removed)
+                 (.remove main-hmap (:__id wme-var)))
+               (.isEmpty main-hmap))
       (reset! empty-count (inc @empty-count)))))
 
-(defn debug-alpha-rem-fun [rname-string alpha-name ^HashMap main-hmap empty-count]
+(defn debug-alpha-rem-fun [rname-string alpha-name ^HashMap main-hmap ie-fun
+                           empty-count]
   (fn [^Wme wme-var]
     (let [split (simon-start "rules")
           asplit (simon-start "alpha")
@@ -612,7 +760,15 @@
               rname-string
               [(get wme-var :type) (get wme-var :__id)]
               (name alpha-name))
-      (when (and (.remove main-hmap (:__id wme-var)) (.isEmpty main-hmap))
+      (when (and (if ie-fun
+                   (let [submap (.get main-hmap :ie)
+                         removed (tree-map-remove submap (ie-fun wme-var)
+                                                  (:__id wme-var))]
+                     (when (and submap (.isEmpty ^TreeMap submap))
+                       (.remove main-hmap :ie))
+                     removed)
+                   (.remove main-hmap (:__id wme-var)))
+                 (.isEmpty main-hmap))
         (reset! empty-count (inc @empty-count)))
       (debugf "Removed leaving: %s\n" (vec (keys main-hmap)))
       (simon-stop asplit)
@@ -837,7 +993,7 @@
           (catch Exception e
             (binding [*out* *err*]
               (println (str "Error processing wme: " (to-map wme)))
-              (println (get-stack-trace)))
+              (.printStackTrace e))
             (throw e))))
       (recur))))
 

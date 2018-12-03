@@ -5,18 +5,22 @@
             [engine.core :refer :all]
             [engine.context-test :as ctxt]))
 
-(deftest simple-rule
-  (testing "Simple rule, no deletion"
-    (let [result
-          ((engine :engine.simple-rule-test)
-           :run
-           [{:type :ball :pattern :solid :color :blue :value 28}
-            {:type :ball :pattern :stripe :color :blue :value 6}])
-          pairs (:pair result)
-          balls (:ball result)]
-      (is (= (count result) 2))
-      (is (= pairs [{:type :pair :ball1 6 :ball2 28}]))
-      (is (= (count balls) 2)))))
+(deftest big-cross
+  (testing "inequality performance"
+    (let [data (atom [])
+          eng (engine :engine.big-cross-test)]
+      (loop [i 0 j -9998]
+        (when (< i 10000)
+          (swap! data conj {:type :ball :pattern :stripe :color :red
+                            :value i})
+          (swap! data conj {:type :ball :pattern :solid :color :red
+                            :value j})
+          (recur (inc i) (inc j))))
+      (loop [g 0]
+        (when (< g 5)
+          (swap! data conj {:type :gurk :value g})
+          (recur (inc g))))
+      (time (eng :run-list @data)))))
 
 (deftest simple-priority
   (testing "Simple rule, two priorities w/ deletion"
@@ -27,7 +31,7 @@
 
 (deftest multiple-rule-modules
   (testing "Same priority test with multiple rule sets loaded into engine"
-    (is (= ((engine :engine.simple-priority-test :engine.simple-rule-test)
+    (is (= ((engine :engine.simple-priority-test :engine.big-cross-test)
             :run
             [{:type :thing} {:type :thing} {:type :thing} {:type :counter}])
            {:tally [{:type :tally} {:type :tally} {:type :tally}]}))))
@@ -195,3 +199,19 @@
          #"Rule: 'engine.rule-loop-test/looper' is stuck in a loop."
          ((engine :engine.rule-loop-test) :run [{:type :x}])))))
 
+(deftest multi-optimized-inequality
+  (testing "Chained optimized inequalities"
+    (let [data (atom [])
+          eng (engine :engine.multi-ineq)]
+      (loop [i 0 j -10]
+        (when (< i 20)
+          (swap! data conj {:type :ball :pattern :stripe :color :red
+                            :value i :other-value j})
+          (swap! data conj {:type :ball :pattern :solid :color :red
+                            :value j :other-value i})
+          (recur (inc i) (inc j))))
+      (loop [b 0]
+        (when (< b 5)
+          (swap! data conj {:type :brong :value b})
+          (recur (inc b))))
+      (is (= (count (:triple (eng :run @data))) 175)))))
