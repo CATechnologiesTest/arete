@@ -1,4 +1,4 @@
-# Arete rule engine (version: 0.6.0)
+# Arete rule engine (version: 0.6.1)
 A Clojure implementation of a simple forward chaining rule engine. An
 engine is created by defining rules in one or more modules and
 invoking engine.core/engine on keywords defining the modules. Each
@@ -30,8 +30,8 @@ Example:
     {:service [{:type :service :name "s1"}]}
 
 The result of invoking :run [`<wme>`...] on an engine is to insert the
-specified working memory elements, run rules until no more will fire
-and then return a map of wme types to sequences of wmes.
+specified working memory elements (wmes), run rules until no more will
+fire and then return a map of wme types to sequences of wmes.
 
 ## Background
 This engine was originally created to help with translating between
@@ -55,7 +55,7 @@ would actually be relatively easy to do and will probably happen at
 some point if there's interest.
 
 ## Install
-The Arete engine is available from clojars as `[arete "0.6.0"]` or simply
+The Arete engine is available from clojars as `[arete "0.6.1"]` or simply
 download the repo, install leiningen if necessary, and run `lein
 uberjar`. The main class in the uberjar is the rule viewer for
 debugging. The engine itself has no command line.
@@ -275,7 +275,7 @@ We'll run them by hand in the repl:
 
 Now let's run the viewer:
 
-    java -jar target/arete-0.6.0-standalone.jar /tmp/out
+    java -jar target/arete-0.6.1-standalone.jar /tmp/out
 
     Instantiations:
      :engine.factorial/fact (3*)
