@@ -1,4 +1,4 @@
-(defproject arete "0.6.0"
+(defproject arete "0.6.1"
   :description "Clojure rule engine"
   :url "https://github.com/yipee.io/arete.git"
   :license {:name "Eclipse Public License"
