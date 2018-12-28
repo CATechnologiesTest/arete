@@ -10,7 +10,7 @@
             [potemkin :refer [import-vars]]
             [engine.runtime
              :refer :all
-             :exclude [get-stack-trace ppwrap wme-types]]
+             :exclude [get-stack-trace ppwrap wme-types >> << >>= <<=]]
             [engine.viewer :refer [view]])
   (:import [org.javasimon SimonManager Stopwatch]
            [java.util HashMap TreeSet TreeMap TreeMap$Entry
@@ -18,11 +18,15 @@
            clojure.lang.PersistentVector))
 
 ;; Variables from runtime that we want to expose from core (using the Potemkin
-;; library's "import-vars"
+;; library's "import-vars")
 (import-vars [engine.runtime
               get-stack-trace
               ppwrap
-              wme-types])
+              wme-types
+              >>
+              <<
+              >>=
+              <<=])
 
 ;; Whether or not to turn on simon performance monitoring -- assumes
 ;; NO_PERF_COMPILE environment variable was not set during compilation
@@ -83,14 +87,22 @@
         in-order (find-any vars left)]
     (if in-order [left right] [right left])))
 
+(defn make-vec-funs [test-exp vars wme-var]
+  (let [pairs (map #(order-sub-exps % vars) test-exp)]
+    [(mapv first pairs) `(fn [~wme-var] ~(mapv second pairs))]))
+
 (defn make-hash-funs [test-exp vars wme-var]
   (if (vector? test-exp)
-    (let [pairs (map #(order-sub-exps % vars) test-exp)]
-      [(mapv first pairs) `(fn [~wme-var] ~(mapv second pairs))])
+    (make-vec-funs test-exp vars wme-var)
     (let [pair (order-sub-exps test-exp vars)]
       [(first pair) `(fn [~wme-var] ~(second pair))])))
 
-(defn make-add-fun [alpha-tests lhash-fun alpha-name rname-string wme-var
+(defn make-ie-data [test-exp vars wme-var]
+  (conj (make-vec-funs test-exp vars wme-var)
+        (mapv first test-exp)))
+
+(defn make-add-fun [alpha-tests lhash-fun luie-fun comps alpha-name
+                    rname-string wme-var
                     oset ocur empty-count-name rule-name main-fun]
   ;; Select a function to handle alpha nodes depending on whether:
   ;; a) there are single object filtering tests
@@ -106,6 +118,8 @@
                           (and ~@(map #(translate-obj-test % wme-var)
                                       alpha-tests)))
                         ~lhash-fun
+                        ~luie-fun
+                        ~comps
                         ~oset
                         ~ocur
                         ~empty-count-name
@@ -118,6 +132,8 @@
                            (and ~@(map #(translate-obj-test % wme-var)
                                        alpha-tests)))
                          ~lhash-fun
+                         ~luie-fun
+                         ~comps
                          ~oset
                          ~ocur
                          ~empty-count-name
@@ -130,6 +146,8 @@
                          (fn [~wme-var]
                            (and ~@(map #(translate-obj-test % wme-var)
                                        alpha-tests)))
+                         ~luie-fun
+                         ~comps
                          ~oset
                          ~ocur
                          ~empty-count-name
@@ -141,6 +159,8 @@
                           (fn [~wme-var]
                             (and ~@(map #(translate-obj-test % wme-var)
                                         alpha-tests)))
+                          ~luie-fun
+                          ~comps
                           ~oset
                           ~ocur
                           ~empty-count-name
@@ -151,6 +171,8 @@
                          ~rname-string
                          '~alpha-name
                          ~lhash-fun
+                         ~luie-fun
+                         ~comps
                          ~oset
                          ~ocur
                          ~empty-count-name
@@ -160,6 +182,8 @@
     [false true false] `(~alpha-name
                         (alpha-hash-fun-no-tests
                          ~lhash-fun
+                         ~luie-fun
+                         ~comps
                          ~oset
                          ~ocur
                          ~empty-count-name
@@ -169,6 +193,8 @@
                         (debug-alpha-fun-no-tests
                          ~rname-string
                          '~alpha-name
+                         ~luie-fun
+                         ~comps
                          ~oset
                          ~ocur
                          ~empty-count-name
@@ -176,13 +202,16 @@
                          ~main-fun))
     ;; No Tests, No Hashing, No Debug
     [false false false] `(~alpha-name
-                        (alpha-fun-no-tests
-                         ~oset
-                         ~ocur
-                         ~empty-count-name
-                         ~main-fun))))
+                          (alpha-fun-no-tests
+                           ~luie-fun
+                           ~comps
+                           ~oset
+                           ~ocur
+                           ~empty-count-name
+                           ~main-fun))))
 
-(defn make-upstream-fun-no-beta-tests [op-name uhash-exp ocur outer-vars vars
+(defn make-upstream-fun-no-beta-tests [op-name uhash-exp uie-exp ocur
+                                       outer-vars vars
                                        upstream-node upstream-name
                                        outer-var-sublist sub-fun wme-var]
   (let [down (gensym "down")]
@@ -197,6 +226,11 @@
                    [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
                        ~uhash-exp)]
                    [uhash-exp]))
+             ~@(when uie-exp
+                 (if outer-vars
+                   [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
+                       ~uie-exp)]
+                 [uie-exp]))
              (fn ~sub-fun
                [~@outer-var-sublist ~wme-var]
                (~down ~@outer-var-sublist ~@(conj vars wme-var)))))))
@@ -208,10 +242,16 @@
                 [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
                     ~uhash-exp)]
                 [uhash-exp]))
+          ~@(when uie-exp
+              (if outer-vars
+                [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
+                    ~uie-exp)]
+                [uie-exp]))
           (fn ~sub-fun [~@outer-var-sublist ~wme-var]
             (~down ~@outer-var-sublist ~@(conj vars wme-var))))))))
 
-(defn make-upstream-fun-with-beta-tests [op-name uhash-exp ocur outer-vars vars
+(defn make-upstream-fun-with-beta-tests [op-name uhash-exp uie-exp ocur
+                                         outer-vars vars
                                          beta-tests upstream-node upstream-name
                                          outer-var-sublist sub-fun wme-var
                                          rname-string]
@@ -227,6 +267,11 @@
                    [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
                        ~uhash-exp)]
                  [uhash-exp]))
+             ~@(when uie-exp
+                 (if outer-vars
+                   [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
+                       ~uie-exp)]
+                 [uie-exp]))
              ;; beta tests
              ~(if @compile-with-debug
                 `(fn ~sub-fun [~@outer-var-sublist ~wme-var]
@@ -250,6 +295,11 @@
                 [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
                     ~uhash-exp)]
                 [uhash-exp]))
+          ~@(when uie-exp
+              (if outer-vars
+                [`(let [~@outer-var-sublist engine.runtime/*outer-vars*]
+                    ~uie-exp)]
+                [uie-exp]))
           ~(if @compile-with-debug
              `(fn ~sub-fun [~@outer-var-sublist ~wme-var]
                 (let [split# (.start (SimonManager/getStopwatch "beta"))
@@ -264,6 +314,23 @@
                 (when (and ~@(map #(translate-obj-test % wme-var) beta-tests))
                   (~down ~@outer-var-sublist ~@(conj vars wme-var))))))))))
 
+(defn- unpack [x]
+  (let [comparison (first x)]
+    (if (> (count x) 3)
+      (cons (list comparison (second x) (third x))
+            (unpack (cons comparison (nthnext x 2))))
+      (list x))))
+
+(defn is-optimizable [upstream-vars]
+  (fn [x] (or (and (find-any upstream-vars (second x))
+                   (not (find-any upstream-vars (third x))))
+              (and (find-any upstream-vars (third x))
+                   (not (find-any upstream-vars (second x)))))))
+
+(defn optimizable-tests [x comparisons upstream-vars]
+  (filter (is-optimizable upstream-vars)
+          (mapcat unpack (filter #(comparisons (first %)) x))))
+
 ;; Construct a standard object match node for a positive LHS match
 (defn make-obj-node [rname-string rule-name net-name outer-names empty-count-name
                      x nodes vars outer-vars]
@@ -276,20 +343,16 @@
         tests (group-by #(find-any upstream-vars %) (nthnext x 2))
         alpha-tests (tests false)
         base-beta-tests (tests true)
+        find-tests #(optimizable-tests base-beta-tests % upstream-vars)
         ;; We handle any equality comparison between the current object
         ;; and a previous object as a hash comparison
-        hash-tests (filter #(and (= (first %) '=)
-                                 (or (and (find-any upstream-vars (second %))
-                                          (not (find-any upstream-vars
-                                                         (nth % 2))))
-                                     (and (find-any upstream-vars (nth % 2))
-                                          (not (find-any upstream-vars
-                                                         (second %))))))
-                           base-beta-tests)
-        beta-tests (if (empty? hash-tests)
+        hash-tests (find-tests #{'=})
+        ie-tests (find-tests #{'>> '<< '>>= '<<=})
+        all-optimizable (concat hash-tests ie-tests)
+        beta-tests (if (empty? all-optimizable)
                      base-beta-tests
-                     (let [htest-set (into #{} hash-tests)]
-                       (filter #(not (htest-set %)) base-beta-tests)))
+                     (let [otest-set (into #{} all-optimizable)]
+                       (filter #(not (otest-set %)) base-beta-tests)))
         [uhash-exp lhash-fun] (if (empty? hash-tests)
                                 [nil nil]
                                 (make-hash-funs
@@ -297,6 +360,10 @@
                                    (first hash-tests)
                                    (vec hash-tests))
                                  upstream-vars wme-var))
+        [uie-exp luie-fun comps] (if (empty? ie-tests)
+                                   [nil nil nil]
+                                   (make-ie-data (vec ie-tests) upstream-vars
+                                                 wme-var))
         ;; A negated conjunction acts as a full nested network with its
         ;; own main function. We need to tweak the root nodes of all outer
         ;; nets before and after running the negated main function so that
@@ -331,7 +398,8 @@
         upstream-node (get-upstream nodes)
         outer-var-sublist (if outer-vars [outer-vars] [])
         ;; function to add a new wme to alpha memory
-        add-fun (make-add-fun alpha-tests lhash-fun alpha-name rname-string
+        add-fun (make-add-fun alpha-tests lhash-fun luie-fun comps alpha-name
+                              rname-string
                               wme-var oset ocur empty-count-name rule-name
                               main-fun)
         ;; function to remove a wme from alpha memory
@@ -339,32 +407,60 @@
                   (if @compile-with-debug
                     `(~alpha-rem-name
                       (debug-alpha-hash-rem-fun ~rname-string '~alpha-name ~oset
-                                                ~lhash-fun ~empty-count-name))
+                                                ~lhash-fun ~luie-fun
+                                                ~empty-count-name))
                     `(~alpha-rem-name
-                      (alpha-hash-rem-fun ~oset ~lhash-fun ~empty-count-name)))
+                      (alpha-hash-rem-fun ~oset ~lhash-fun ~luie-fun
+                                          ~empty-count-name)))
                   (if @compile-with-debug
                     `(~alpha-rem-name
                       (debug-alpha-rem-fun ~rname-string '~alpha-name ~oset
-                                     ~empty-count-name))
+                                     ~luie-fun ~empty-count-name))
                     `(~alpha-rem-name
-                      (alpha-rem-fun ~oset ~empty-count-name))))
+                      (alpha-rem-fun ~oset ~luie-fun ~empty-count-name))))
         ;; function to feed alpha values to beta tests
         op-fun `(~op-name
                  ~(if uhash-exp
-                    `(fn ~op-name [hash-val# beta#]
-                       (debugf "Running: %s" '~op-name)
-                       (doseq [cur# (vals (.get (deref ~ocur) hash-val#))]
-                         (beta# ~@(if outer-vars
-                                    '[engine.runtime/*outer-vars*]
-                                    [])
-                                cur#)))
-                    `(fn ~op-name [beta#]
-                       (debugf "Running: %s" '~op-name)
-                       (doseq [cur# (vals (deref ~ocur))]
-                         (beta# ~@(if outer-vars
-                                    '[engine.runtime/*outer-vars*]
-                                    [])
-                                cur#)))))
+                    (if uie-exp
+                      `(fn ~op-name [hash-val# uie-val# beta#]
+                         (debugf "Running: %s" '~op-name)
+                         (let [tree-map# (.get (deref ~ocur) hash-val#)]
+                           (tree-map-apply
+                            tree-map#
+                            ~comps
+                            uie-val#
+                            (fn [cur#]
+                              (beta# ~@(if outer-vars
+                                         '[engine.runtime/*outer-vars*]
+                                         [])
+                                     cur#)))))
+                      `(fn ~op-name [hash-val# beta#]
+                         (debugf "Running: %s" '~op-name)
+                         (doseq [cur# (vals (.get (deref ~ocur) hash-val#))]
+                           (beta# ~@(if outer-vars
+                                      '[engine.runtime/*outer-vars*]
+                                      [])
+                                  cur#))))
+                    (if uie-exp
+                      `(fn ~op-name [uie-val# beta#]
+                         (debugf "Running: %s" '~op-name)
+                         (let [tree-map# (.get (deref ~ocur) :ie)]
+                           (tree-map-apply
+                            tree-map#
+                            ~comps
+                            uie-val#
+                            (fn [cur#]
+                              (beta# ~@(if outer-vars
+                                         '[engine.runtime/*outer-vars*]
+                                         [])
+                                     cur#)))))
+                      `(fn ~op-name [beta#]
+                         (debugf "Running: %s" '~op-name)
+                         (doseq [cur# (vals (deref ~ocur))]
+                           (beta# ~@(if outer-vars
+                                      '[engine.runtime/*outer-vars*]
+                                      [])
+                                  cur#))))))
         ;; function called to run upstream tests before invoking downward
         ;; result function
         upstream-fun `(~upstream-name
@@ -377,14 +473,14 @@
                               ;; hash equality)
                               (empty? beta-tests)
                               (make-upstream-fun-no-beta-tests
-                               op-name uhash-exp ocur outer-vars vars
+                               op-name uhash-exp uie-exp ocur outer-vars vars
                                upstream-node upstream-name outer-var-sublist
                                sub-fun wme-var)
 
                               ;; Full generality; w/ beta tests and hashing
                               true
                               (make-upstream-fun-with-beta-tests
-                               op-name uhash-exp ocur outer-vars vars
+                               op-name uhash-exp uie-exp ocur outer-vars vars
                                beta-tests upstream-node upstream-name
                                outer-var-sublist sub-fun wme-var rname-string)))]
     [`{:type :obj-node
