@@ -4,13 +4,13 @@ If any part of the etcd project has bugs or documentation mistakes, please let u
 
 To make the bug report accurate and easy to understand, please try to create bug reports that are:
 
-- Specific. Include as much details as possible: which version, what environment, what configuration, etc. If the bug is related to running the etcd server, please attach the etcd log (the starting log with etcd configuration is especially important).
+- Specific. Include as much details as possible: which version, what environment, what configuration, logs, etc. 
 
-- Reproducible. Include the steps to reproduce the problem. We understand some issues might be hard to reproduce, please includes the steps that might lead to the problem. If possible, please attach the affected etcd data dir and stack strace to the bug report.
+- Reproducible. Include the steps to reproduce the problem. We understand some issues might be hard to reproduce, please includes the steps that might lead to the problem. If possible, please attach the rulesets to the bug report.  Note, without the rulesets (or sample ones that illustrate the problem) it will be difficult to reproduce.
 
-- Isolated. Please try to isolate and reproduce the bug with minimum dependencies. It would significantly slow down the speed to fix a bug if too many dependencies are involved in a bug report. Debugging external systems that rely on etcd is out of scope, but we are happy to provide guidance in the right direction or help with using etcd itself.
+- Isolated. Please try to isolate and reproduce the bug with minimum dependencies. It would significantly slow down the speed to fix a bug if too many dependencies are involved in a bug report. Debugging external systems that rely on arete is out of scope, but we are happy to provide guidance in the right direction or help with using arete itself.
 
-- Unique. Do not duplicate existing bug report.
+- Unique. Do not duplicate existing bug reports.
 
 - Scoped. One bug per report. Do not follow up with another bug inside one report.
 
