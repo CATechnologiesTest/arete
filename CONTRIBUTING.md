@@ -2,9 +2,9 @@
 
 Welcome! We're excited that you're interested in contributing. 
 
-Below you will find some basic steps required to be able to contribute to the project. If you have any questions about this process or any other aspect of contributing to a Yipee open source project, feel free to send an email to support@yipee.io and we'll get your questions answered as quickly as we can.
+Below you will find some basic steps required to be able to contribute to the project. If you have any questions about this process or any other aspect of contributing to a Yipee open source project, please open an [issue](https://github.com/yipeeio/arete/issues) and we'll get your questions answered as quickly as we can.
 
-Pull Requests are always welcome, however they will only be accepted if they provide a reasonably test coverage.
+Pull Requests are always welcome, however they will only be accepted if they provide a reasonable test coverage.
 
 ## Workflow
 
@@ -32,7 +32,7 @@ Additional information on DCOs located at https://github.com/probot/dco#how-it-w
 
 ## Reporting bugs and creating issues
 
-Reporting bugs is one of the best ways to contribute. However, a good bug report has some very specific qualities, so please read over our short document on [reporting bugs](https://github.com/etcd-io/etcd/blob/master/Documentation/reporting_bugs.md) before submitting a bug report. This document might contain links to known issues, another good reason to take a look there before reporting a bug.
+Reporting bugs is one of the best ways to contribute. However, a good bug report has some very specific qualities, so please read over our short document on [reporting bugs](reporting_bugs.md) before submitting a bug report. This document might contain links to known issues, another good reason to take a look there before reporting a bug.
 
 Thanks for contributing!
 
