@@ -1,3 +1,5 @@
+# Repository Status
+**This repository exists here for historical purposes.  The active arete repo is now hosted at: https://github.com/yipeeio/arete**
 # Arete rule engine (version: 0.6.1)
 A Clojure implementation of a simple forward chaining rule engine. An
 engine is created by defining rules in one or more modules and
